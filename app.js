@@ -20,21 +20,15 @@ const state = {
 
 const isMobile = () => window.matchMedia("(max-width: 980px)").matches;
 
-function setStatus(text, ok=false){
+function setStatus(text, kind="neutral"){
   const el = $("#status");
   if (!el) return;
-  el.textContent = text;
-  el.style.color = ok ? "var(--ok)" : "";
-}
 
-function dartLabel(d){
-  if (!d) return "—";
-  if (d.base === 0) return "Miss (0)";
-  // Bullseye (centre) = D25 = 50
-  if (d.base === 25 && d.mult === "D") return "Bull (50)";
-  // Outer bull = 25
-  if (d.base === 25 && d.mult === "S") return "25";
-  return `${d.mult}${d.base} (${d.points})`;
+  el.textContent = text;
+
+  el.classList.remove("status-error", "status-ok");
+  if (kind === "error") el.classList.add("status-error");
+  if (kind === "ok") el.classList.add("status-ok");
 }
 
 function points(mult, base){
@@ -46,8 +40,124 @@ function turnTotal(){
   return state.currentTurn.reduce((a,d) => a + d.points, 0);
 }
 
-function currentPlayer(){
+function currentPlayerObj(){
   return state.players[state.currentPlayer];
+}
+
+function projectedRemaining(){
+  const p = currentPlayerObj();
+  if (!p) return null;
+  return p.score - turnTotal();
+}
+
+/* -------------------- Checkout engine -------------------- */
+/* We compute a best checkout (≤ 3 darts) up to 160 by brute force.
+   Bull (50) = D25.
+   If double-out: last dart must be double.
+*/
+
+function dartPool(){
+  const pool = [];
+
+  // Singles/Doubles/Triples 1..20
+  for (let n=1; n<=20; n++){
+    pool.push({ label:`S${n}`, value:n, isDouble:false });
+    pool.push({ label:`D${n}`, value:2*n, isDouble:true });
+    pool.push({ label:`T${n}`, value:3*n, isDouble:false });
+  }
+
+  // Outer bull 25 and bull 50 (D25)
+  pool.push({ label:"S25", value:25, isDouble:false });
+  pool.push({ label:"Bull", value:50, isDouble:true }); // D25
+
+  return pool;
+}
+
+const POOL = dartPool();
+
+function formatCheckout(seq){
+  // Make it pretty like: T20 + T20 + D20 (or Bull)
+  return seq.map(d => d.label === "Bull" ? "Bull (50)" : d.label).join(" + ");
+}
+
+function bestCheckout(remaining, doubleOut=true){
+  if (remaining == null) return null;
+  if (remaining <= 1) return null;
+
+  // requirement asked: start suggesting from 160 down
+  if (remaining > 160) return null;
+
+  // If double-out and remaining is 2..50, there are simple endings etc.
+  // brute force 1,2,3 darts.
+  let best = null;
+
+  const accept = (seq) => {
+    // double-out: last must be double
+    if (doubleOut && !seq[seq.length-1].isDouble) return false;
+    const sum = seq.reduce((a,d)=>a+d.value,0);
+    return sum === remaining;
+  };
+
+  // Prefer fewer darts, then prefer higher first dart (more "standard")
+  const scoreSeq = (seq) => {
+    const values = seq.map(d=>d.value);
+    const len = seq.length;
+    // primary: len; secondary: higher earlier
+    let tie = 0;
+    if (len >= 1) tie += values[0] * 1000;
+    if (len >= 2) tie += values[1] * 10;
+    if (len >= 3) tie += values[2];
+    return { len, tie };
+  };
+
+  // 1 dart
+  for (const a of POOL){
+    const seq = [a];
+    if (accept(seq)){
+      best = seq;
+      return best; // 1 dart is always best
+    }
+  }
+
+  // 2 darts
+  for (const a of POOL){
+    for (const b of POOL){
+      const seq = [a,b];
+      if (!accept(seq)) continue;
+      if (!best) best = seq;
+      else{
+        const s1 = scoreSeq(seq), s2 = scoreSeq(best);
+        if (s1.len < s2.len || (s1.len === s2.len && s1.tie > s2.tie)) best = seq;
+      }
+    }
+  }
+
+  // 3 darts
+  for (const a of POOL){
+    for (const b of POOL){
+      for (const c of POOL){
+        const seq = [a,b,c];
+        if (!accept(seq)) continue;
+        if (!best) best = seq;
+        else{
+          const s1 = scoreSeq(seq), s2 = scoreSeq(best);
+          if (s1.len < s2.len || (s1.len === s2.len && s1.tie > s2.tie)) best = seq;
+        }
+      }
+    }
+  }
+
+  return best;
+}
+
+/* -------------------- Labels -------------------- */
+
+function dartLabel(d){
+  if (!d) return "—";
+  if (d.base === 0) return "Miss (0)";
+  if (d.base === 25 && d.mult === "D") return "Bull (50)";
+  if (d.base === 25 && d.mult === "S") return "25";
+  return `${d.mult}${d.base} (${d.points})`;
 }
 
 /* -------------------- UI helpers -------------------- */
@@ -59,7 +169,6 @@ function setMobileOverlay(open){
   overlay.classList.toggle("hidden", !open);
   overlay.setAttribute("aria-hidden", String(!open));
 
-  // bloque scroll background quand overlay ouvert
   document.body.classList.toggle("no-scroll", open);
 
   if (open){
@@ -84,7 +193,7 @@ function mobileSetStep(step){
 }
 
 function renderMobileHeader(){
-  const p = currentPlayer();
+  const p = currentPlayerObj();
   const title = $("#mobileTitle");
   const sub = $("#mobileSub");
 
@@ -96,12 +205,21 @@ function renderMobileHeader(){
     return;
   }
 
-  title.textContent = `${p.name} • Score: ${p.score}`;
+  const remNow = p.score;
+  const remAfter = projectedRemaining();
+
+  title.textContent = `${p.name} • Score: ${remNow}`;
   if (state.mobileStep === "numbers"){
     sub.textContent = `Choisis un chiffre (fléchettes: ${state.currentTurn.length}/3)`;
   } else {
     sub.textContent = `Chiffre ${state.mobileNumber} → Simple / Double / Triple`;
   }
+
+  // update live pills too
+  const r = $("#mobileRemaining");
+  const p2 = $("#mobileProjected");
+  if (r) r.textContent = `Reste: ${remNow}`;
+  if (p2) p2.textContent = `Après tour: ${remAfter ?? "—"}`;
 }
 
 function renderScoreboard(){
@@ -142,10 +260,17 @@ function renderDesktopTurn(){
   const ti = $("#turnInfo");
   const hint = $("#hint");
 
+  const p = currentPlayerObj();
+
   if (ti){
-    const p = currentPlayer();
     ti.textContent = (state.started && p) ? `${p.name} • fléchettes: ${state.currentTurn.length}/3` : "—";
   }
+
+  // live remaining on desktop
+  const liveR = $("#liveRemaining");
+  const liveP = $("#liveProjected");
+  if (liveR) liveR.textContent = `Reste: ${p?.score ?? "—"}`;
+  if (liveP) liveP.textContent = `Après tour: ${projectedRemaining() ?? "—"}`;
 
   if (td){
     td.innerHTML = "";
@@ -166,10 +291,10 @@ function renderDesktopTurn(){
 
   const v = $("#btnValidateTurn");
   const back = $("#btnBackDart");
-  const miss = $("#btnMiss");
+  const missBtn = $("#btnMiss");
   if (v) v.disabled = !(state.started && state.currentTurn.length > 0);
   if (back) back.disabled = !(state.started && state.currentTurn.length > 0);
-  if (miss) miss.disabled = !state.started || state.currentTurn.length >= 3;
+  if (missBtn) missBtn.disabled = !state.started || state.currentTurn.length >= 3;
 }
 
 function renderMobileTurn(){
@@ -186,16 +311,34 @@ function renderMobileTurn(){
 
   const validate = $("#btnMobileValidate");
   const undoDart = $("#btnMobileUndoDart");
-  const miss = $("#btnMobileMiss");
+  const missBtn = $("#btnMobileMiss");
 
   if (validate) validate.disabled = !(state.started && state.currentTurn.length > 0);
   if (undoDart) undoDart.disabled = !(state.started && state.currentTurn.length > 0);
-  if (miss) miss.disabled = !state.started || state.currentTurn.length >= 3;
+  if (missBtn) missBtn.disabled = !state.started || state.currentTurn.length >= 3;
 
   renderMobileHeader();
 }
 
-/* -------------------- Number pads -------------------- */
+function updateSuggestions(){
+  const p = currentPlayerObj();
+  const desktopEl = $("#desktopSuggest");
+  const mobileEl = $("#mobileSuggest");
+  const remaining = projectedRemaining(); // IMPORTANT: updates after each dart
+
+  let text = "—";
+  if (state.started && p && remaining != null){
+    const seq = bestCheckout(remaining, state.doubleOut);
+    if (seq) text = `Suggestion: ${formatCheckout(seq)}`;
+    else if (remaining <= 160 && remaining > 0) text = "Pas de checkout simple en 3 fléchettes.";
+    else text = "—";
+  }
+
+  if (desktopEl) desktopEl.textContent = text;
+  if (mobileEl) mobileEl.textContent = text;
+}
+
+/* -------------------- Number pads (Bull logic fixed) -------------------- */
 
 function buildDesktopNumbers(){
   const host = $("#numbers");
@@ -230,24 +373,19 @@ function desktopSelect(btn){
     return;
   }
 
-  // Outer bull (25) : on force simple direct (pas de multi)
+  // 25 direct
   if (kind === "outerbull"){
     addDart(25, "S");
     clearDesktopSelection();
     return;
   }
 
-  // normal number -> require multiplier
   state.selectedNumber = val;
 
   document.querySelectorAll(".num").forEach(b => b.classList.remove("selected"));
   btn.classList.add("selected");
 
   enableDesktopMultis(true);
-
-  // triple ok for 1..20
-  const t = $("#btnT");
-  if (t) t.disabled = false;
 }
 
 function enableDesktopMultis(on){
@@ -283,16 +421,13 @@ function buildMobileNumbers(){
     mk(String(i), () => mobilePickNumber(i));
   }
 
-  // Outer bull = 25 direct
   mk("25", () => {
     if (!state.started || state.currentTurn.length >= 3) return;
     addDart(25, "S");
-    // rester sur chiffres
     state.mobileNumber = null;
     mobileSetStep("numbers");
   });
 
-  // Bullseye = 50 direct (D25)
   mk("Bull (50)", () => {
     if (!state.started || state.currentTurn.length >= 3) return;
     addDart(25, "D");
@@ -318,7 +453,7 @@ function newGame(){
   clearDesktopSelection();
   state.started = true;
 
-  setStatus("Partie lancée.", true);
+  setStatus("Partie lancée.", "ok");
 
   if (isMobile()) setMobileOverlay(true);
   renderAll();
@@ -335,16 +470,15 @@ function mobilePickNumber(val){
 function addDart(base, mult){
   if (!state.started) return;
   if (state.currentTurn.length >= 3) return;
-
-  // (On n'a plus besoin du cas "25 triple", car Bull 50 est direct et 25 est direct)
   if (base === 25 && mult === "T") return;
 
   const d = { base, mult, points: points(mult, base) };
   state.currentTurn.push(d);
 
+  // update live UI after each dart
   renderAll();
 
-  // mobile UX: revenir aux chiffres après chaque fléchette "normale"
+  // mobile UX: back to numbers after each dart
   if (isMobile()){
     state.mobileNumber = null;
     mobileSetStep("numbers");
@@ -366,7 +500,7 @@ function validateTurn(){
   if (!state.started) return;
   if (state.currentTurn.length === 0) return;
 
-  const p = currentPlayer();
+  const p = currentPlayerObj();
   const startScore = p.score;
   const total = turnTotal();
   const newScore = startScore - total;
@@ -375,15 +509,16 @@ function validateTurn(){
   let win = false;
   let reason = "";
 
+  // Bust conditions
   if (newScore < 0){
-    bust = true; reason = "Bust (score < 0)";
+    bust = true; reason = "Bust : score trop bas ( < 0 )";
   } else if (state.doubleOut){
     if (newScore === 1){
-      bust = true; reason = "Bust (reste 1 en double-out)";
+      bust = true; reason = "Bust : reste 1 (double-out)";
     } else if (newScore === 0){
       const last = state.currentTurn[state.currentTurn.length - 1];
       if (!last || last.mult !== "D"){
-        bust = true; reason = "Bust (finir sur une double)";
+        bust = true; reason = "Bust : il faut finir sur une DOUBLE";
       } else {
         win = true;
       }
@@ -393,11 +528,11 @@ function validateTurn(){
   }
 
   if (bust){
-    setStatus(reason, false);
+    setStatus(reason, "error");
     // score inchangé
   } else if (win){
     p.score = 0;
-    setStatus(`${p.name} a gagné !`, true);
+    setStatus(`${p.name} a gagné !`, "ok");
     state.started = false;
     state.currentTurn = [];
     clearDesktopSelection();
@@ -406,9 +541,10 @@ function validateTurn(){
     return;
   } else {
     p.score = newScore;
-    setStatus("Tour validé.", true);
+    setStatus("Tour validé.", "ok");
   }
 
+  // Next player
   state.currentTurn = [];
   clearDesktopSelection();
   state.currentPlayer = (state.currentPlayer + 1) % state.players.length;
@@ -422,7 +558,7 @@ function resetAll(){
   state.currentPlayer = 0;
   state.currentTurn = [];
   clearDesktopSelection();
-  setStatus("—", false);
+  setStatus("—", "neutral");
   setMobileOverlay(false);
   renderAll();
 }
@@ -434,8 +570,9 @@ function renderAll(){
   renderMobileScores();
   renderDesktopTurn();
   renderMobileTurn();
+  updateSuggestions();
 
-  // mobile overlay content
+  // keep mobile numbers built
   if (isMobile() && state.started){
     buildMobileNumbers();
   }
@@ -460,14 +597,10 @@ function wire(){
   $("#btnBackDart")?.addEventListener("click", undoLastDart);
   $("#btnValidateTurn")?.addEventListener("click", validateTurn);
 
-  // mobile multis (pour 1..20 seulement)
+  // mobile multis (1..20 only)
   document.querySelectorAll(".mobile-multi").forEach(b => {
     b.addEventListener("click", () => {
       if (state.mobileNumber == null) return;
-
-      // si base=25, on n'arrive pas ici normalement (car 25/bull sont directs)
-      if (state.mobileNumber === 25 && b.dataset.m === "T") return;
-
       addDart(state.mobileNumber, b.dataset.m);
     });
   });
@@ -495,5 +628,5 @@ buildDesktopNumbers();
 buildMobileNumbers();
 wire();
 renderAll();
-setStatus("—");
+setStatus("—", "neutral");
 enableDesktopMultis(false);
