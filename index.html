@@ -13,10 +13,9 @@
 <header class="header">
   <div class="title">
     <h1>Darts Counter</h1>
-    <p class="sub">Saisie fléchette par fléchette</p>
+    <p class="sub">Saisie fléchette par fléchette • Double-out optionnel</p>
   </div>
   <div class="header-actions">
-    <button id="btnUndo" class="btn btn-secondary" disabled>Undo</button>
     <button id="btnReset" class="btn btn-danger">Reset</button>
   </div>
 </header>
@@ -39,6 +38,10 @@
           <option value="2" selected>2</option>
           <option value="3">3</option>
           <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+          <option value="7">7</option>
+          <option value="8">8</option>
         </select>
       </div>
 
@@ -47,6 +50,7 @@
           <input type="checkbox" id="doubleOut" checked />
           Double-out
         </label>
+        <small>Finir à 0 avec une double (Bull = D25)</small>
       </div>
 
       <div class="field">
@@ -58,48 +62,94 @@
 
   <section class="grid">
     <section class="card">
-      <h2>Scores</h2>
-      <div id="scoreboard"></div>
+      <div class="row space">
+        <h2>Scores</h2>
+        <div id="status" class="pill">—</div>
+      </div>
+      <div id="scoreboard" class="scoreboard"></div>
     </section>
 
+    <!-- PC / grand écran : saisie classique -->
     <section class="card desktop-only">
-      <h2>Saisie (PC)</h2>
-      <div id="turnDarts"></div>
-      <div id="numbers"></div>
-
-      <div class="multis">
-        <button class="btn multi" data-m="S">Simple</button>
-        <button class="btn multi" data-m="D">Double</button>
-        <button class="btn multi" data-m="T">Triple</button>
+      <div class="row space">
+        <h2>Saisie (PC)</h2>
+        <div class="pill" id="turnInfo">—</div>
       </div>
 
-      <button id="btnValidateTurn" class="btn btn-primary">Valider tour</button>
+      <div class="turn-darts" id="turnDarts"></div>
+
+      <div class="numbers" id="numbers"></div>
+
+      <div class="multis">
+        <button class="btn btn-secondary multi" data-m="S" id="btnS" disabled>Simple</button>
+        <button class="btn btn-secondary multi" data-m="D" id="btnD" disabled>Double</button>
+        <button class="btn btn-secondary multi" data-m="T" id="btnT" disabled>Triple</button>
+      </div>
+
+      <div class="row space">
+        <button id="btnMiss" class="btn btn-secondary">Miss (0)</button>
+        <button id="btnBackDart" class="btn btn-secondary" disabled>Retirer dernière</button>
+        <button id="btnValidateTurn" class="btn btn-primary" disabled>Valider tour</button>
+      </div>
+
+      <div class="hint" id="hint">Clique un chiffre, puis Simple/Double/Triple.</div>
     </section>
   </section>
 </main>
 
-<!-- ===== MOBILE OVERLAY (PLACÉ AVANT app.js — TRÈS IMPORTANT) ===== -->
-<div id="mobileOverlay" class="mobile-overlay hidden">
+<!-- ===== MOBILE OVERLAY (doit être AVANT app.js) ===== -->
+<div id="mobileOverlay" class="mobile-overlay hidden" aria-hidden="true">
   <div class="mobile-top">
-    <div id="mobileTitle" class="pill">—</div>
-    <button id="btnMobileBack" class="btn btn-secondary">Retour</button>
+    <div class="mobile-top-left">
+      <div id="mobileTitle" class="pill">—</div>
+      <div id="mobileSub" class="mobile-sub">—</div>
+    </div>
+    <button id="btnMobileBack" class="btn btn-secondary" disabled>Retour</button>
   </div>
 
-  <div id="mobileNumbers" class="mobile-grid"></div>
+  <!-- Scores toujours visibles -->
+  <div id="mobileScores" class="mobile-scores"></div>
 
-  <div id="mobileMultis" class="mobile-multis hidden">
-    <button class="btn mobile-multi" data-m="S">Simple</button>
-    <button class="btn mobile-multi" data-m="D">Double</button>
-    <button class="btn mobile-multi" data-m="T">Triple</button>
-    <button id="btnMobileMiss" class="btn">Miss</button>
+  <!-- Détails du tour : fléchette 1/2/3 -->
+  <div class="mobile-turn">
+    <div class="mobile-darts" id="mobileDarts">
+      <div class="mobile-dart-slot" data-slot="0">
+        <div class="k">Fléchette 1</div>
+        <div class="v">—</div>
+      </div>
+      <div class="mobile-dart-slot" data-slot="1">
+        <div class="k">Fléchette 2</div>
+        <div class="v">—</div>
+      </div>
+      <div class="mobile-dart-slot" data-slot="2">
+        <div class="k">Fléchette 3</div>
+        <div class="v">—</div>
+      </div>
+    </div>
+
+    <div class="mobile-turn-actions">
+      <button id="btnMobileUndoDart" class="btn btn-secondary" disabled>Retirer dernière</button>
+      <button id="btnMobileMiss" class="btn btn-secondary">Miss (0)</button>
+    </div>
+  </div>
+
+  <!-- Étape 1 : chiffres -->
+  <div id="mobileNumbers" class="mobile-grid" aria-label="Chiffres"></div>
+
+  <!-- Étape 2 : S/D/T -->
+  <div id="mobileMultis" class="mobile-multis hidden" aria-label="Multiplicateurs">
+    <button class="btn btn-secondary mobile-multi" data-m="S">Simple</button>
+    <button class="btn btn-secondary mobile-multi" data-m="D">Double</button>
+    <button class="btn btn-secondary mobile-multi" data-m="T">Triple</button>
   </div>
 
   <div class="mobile-bottom">
-    <div>
-      <div class="label">Total</div>
+    <div class="mobile-total">
+      <div class="label">Total tour</div>
       <div id="mobileTotal" class="value">0</div>
     </div>
-    <button id="btnMobileValidate" class="btn btn-primary">Valider</button>
+
+    <button id="btnMobileValidate" class="btn btn-primary" disabled>Valider tour</button>
   </div>
 </div>
 <!-- ===== FIN MOBILE OVERLAY ===== -->
