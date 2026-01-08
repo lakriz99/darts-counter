@@ -1,9 +1,9 @@
 :root{
-  --bg:#0b1020;
-  --card:#0f172a;
-  --text:#e5e7eb;
-  --muted:#9ca3af;
-  --border:#1f2937;
+  --bg:#1f2937;
+  --card:#111827;
+  --text:#f3f4f6;
+  --muted:#cbd5e1;
+  --border:#334155;
   --primary:#60a5fa;
   --danger:#fb7185;
   --ok:#34d399;
@@ -13,9 +13,10 @@
 body{
   margin:0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  background: radial-gradient(1200px 800px at 20% -10%, #172554 0%, transparent 60%),
-              radial-gradient(800px 600px at 110% 0%, #4c1d95 0%, transparent 55%),
-              var(--bg);
+  background: radial-gradient(1200px 800px at 20% -10%, #2b4ea2 0%, transparent 60%),
+            radial-gradient(800px 600px at 110% 0%, #6d28d9 0%, transparent 55%),
+            var(--bg);
+
   color:var(--text);
 }
 
@@ -153,3 +154,4 @@ body{
   color:var(--muted);
 }
 .hist-item b{color:var(--text)}
+
