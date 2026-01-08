@@ -30,7 +30,9 @@ function setStatus(text, ok=false){
 function dartLabel(d){
   if (!d) return "—";
   if (d.base === 0) return "Miss (0)";
+  // Bullseye (centre) = D25 = 50
   if (d.base === 25 && d.mult === "D") return "Bull (50)";
+  // Outer bull = 25
   if (d.base === 25 && d.mult === "S") return "25";
   return `${d.mult}${d.base} (${d.points})`;
 }
@@ -39,8 +41,6 @@ function points(mult, base){
   const m = mult === "S" ? 1 : mult === "D" ? 2 : 3;
   return base * m;
 }
-
-function canTriple(base){ return base !== 25; }
 
 function turnTotal(){
   return state.currentTurn.reduce((a,d) => a + d.points, 0);
@@ -63,7 +63,6 @@ function setMobileOverlay(open){
   document.body.classList.toggle("no-scroll", open);
 
   if (open){
-    // reset step
     state.mobileStep = "numbers";
     state.mobileNumber = null;
   }
@@ -130,7 +129,6 @@ function renderMobileScores(){
   host.innerHTML = "";
   if (state.players.length === 0) return;
 
-  // 2 colonnes: compact
   state.players.forEach((p, idx) => {
     const pill = document.createElement("div");
     pill.className = "mobile-score-pill" + (state.started && idx === state.currentPlayer ? " active" : "");
@@ -166,7 +164,6 @@ function renderDesktopTurn(){
     else hint.textContent = `Base ${state.selectedNumber} sélectionnée → choisis Simple/Double/Triple.`;
   }
 
-  // boutons desktop
   const v = $("#btnValidateTurn");
   const back = $("#btnBackDart");
   const miss = $("#btnMiss");
@@ -179,7 +176,6 @@ function renderMobileTurn(){
   const total = $("#mobileTotal");
   if (total) total.textContent = String(turnTotal());
 
-  // slots 1/2/3
   const slots = document.querySelectorAll(".mobile-dart-slot");
   slots.forEach((slot) => {
     const idx = Number(slot.getAttribute("data-slot"));
@@ -199,36 +195,59 @@ function renderMobileTurn(){
   renderMobileHeader();
 }
 
+/* -------------------- Number pads -------------------- */
+
 function buildDesktopNumbers(){
   const host = $("#numbers");
   if (!host) return;
 
   host.innerHTML = "";
-  const mk = (label, val) => {
+  const mk = (label, val, kind="number") => {
     const b = document.createElement("button");
     b.className = "btn num";
     b.textContent = label;
+    b.dataset.kind = kind;
     b.dataset.val = String(val);
-    b.addEventListener("click", () => desktopSelectNumber(val));
+    b.addEventListener("click", () => desktopSelect(b));
     return b;
   };
 
   for (let i=1;i<=20;i++) host.appendChild(mk(String(i), i));
-  host.appendChild(mk("25", 25));
-  host.appendChild(mk("Bull", 25));
+  host.appendChild(mk("25", 25, "outerbull"));
+  host.appendChild(mk("Bull (50)", 50, "bull50"));
 }
 
-function desktopSelectNumber(val){
+function desktopSelect(btn){
   if (!state.started) return;
+
+  const kind = btn.dataset.kind;
+  const val = Number(btn.dataset.val);
+
+  // Bull (50) = D25 direct
+  if (kind === "bull50"){
+    addDart(25, "D");
+    clearDesktopSelection();
+    return;
+  }
+
+  // Outer bull (25) : on force simple direct (pas de multi)
+  if (kind === "outerbull"){
+    addDart(25, "S");
+    clearDesktopSelection();
+    return;
+  }
+
+  // normal number -> require multiplier
   state.selectedNumber = val;
 
-  document.querySelectorAll(".num").forEach(b => {
-    const is25Bull = (val === 25) && (b.textContent === "25" || b.textContent === "Bull");
-    const isMatch = Number(b.dataset.val) === val;
-    b.classList.toggle("selected", isMatch || is25Bull);
-  });
+  document.querySelectorAll(".num").forEach(b => b.classList.remove("selected"));
+  btn.classList.add("selected");
 
   enableDesktopMultis(true);
+
+  // triple ok for 1..20
+  const t = $("#btnT");
+  if (t) t.disabled = false;
 }
 
 function enableDesktopMultis(on){
@@ -238,8 +257,6 @@ function enableDesktopMultis(on){
   s.disabled = !on;
   d.disabled = !on;
   t.disabled = !on;
-
-  if (on && state.selectedNumber === 25) t.disabled = true;
 }
 
 function clearDesktopSelection(){
@@ -253,17 +270,35 @@ function buildMobileNumbers(){
   if (!host) return;
 
   host.innerHTML = "";
-  const mk = (label, val) => {
+
+  const mk = (label, action) => {
     const b = document.createElement("button");
     b.className = "btn btn-secondary";
     b.textContent = label;
-    b.addEventListener("click", () => mobilePickNumber(val));
+    b.addEventListener("click", action);
     host.appendChild(b);
   };
 
-  for (let i=1;i<=20;i++) mk(String(i), i);
-  mk("25", 25);
-  mk("Bull", 25);
+  for (let i=1;i<=20;i++){
+    mk(String(i), () => mobilePickNumber(i));
+  }
+
+  // Outer bull = 25 direct
+  mk("25", () => {
+    if (!state.started || state.currentTurn.length >= 3) return;
+    addDart(25, "S");
+    // rester sur chiffres
+    state.mobileNumber = null;
+    mobileSetStep("numbers");
+  });
+
+  // Bullseye = 50 direct (D25)
+  mk("Bull (50)", () => {
+    if (!state.started || state.currentTurn.length >= 3) return;
+    addDart(25, "D");
+    state.mobileNumber = null;
+    mobileSetStep("numbers");
+  });
 }
 
 /* -------------------- Game actions -------------------- */
@@ -285,7 +320,6 @@ function newGame(){
 
   setStatus("Partie lancée.", true);
 
-  // mobile overlay auto
   if (isMobile()) setMobileOverlay(true);
   renderAll();
 }
@@ -301,6 +335,8 @@ function mobilePickNumber(val){
 function addDart(base, mult){
   if (!state.started) return;
   if (state.currentTurn.length >= 3) return;
+
+  // (On n'a plus besoin du cas "25 triple", car Bull 50 est direct et 25 est direct)
   if (base === 25 && mult === "T") return;
 
   const d = { base, mult, points: points(mult, base) };
@@ -308,7 +344,7 @@ function addDart(base, mult){
 
   renderAll();
 
-  // mobile UX: revenir aux chiffres après chaque fléchette
+  // mobile UX: revenir aux chiffres après chaque fléchette "normale"
   if (isMobile()){
     state.mobileNumber = null;
     mobileSetStep("numbers");
@@ -373,7 +409,6 @@ function validateTurn(){
     setStatus("Tour validé.", true);
   }
 
-  // joueur suivant
   state.currentTurn = [];
   clearDesktopSelection();
   state.currentPlayer = (state.currentPlayer + 1) % state.players.length;
@@ -382,7 +417,6 @@ function validateTurn(){
 }
 
 function resetAll(){
-  // reset “dur”
   state.started = false;
   state.players = [];
   state.currentPlayer = 0;
@@ -403,7 +437,6 @@ function renderAll(){
 
   // mobile overlay content
   if (isMobile() && state.started){
-    // rebuild numbers if missing (safe)
     buildMobileNumbers();
   }
 }
@@ -411,7 +444,6 @@ function renderAll(){
 /* -------------------- Wiring -------------------- */
 
 function wire(){
-  // top buttons
   $("#btnNewGame")?.addEventListener("click", newGame);
   $("#btnReset")?.addEventListener("click", resetAll);
 
@@ -420,40 +452,37 @@ function wire(){
     b.addEventListener("click", () => {
       if (state.selectedNumber == null) return;
       addDart(state.selectedNumber, b.dataset.m);
-      // desktop: après une fléchette, on garde la logique “re-sélection”
-      // donc on clear pour obliger à choisir à nouveau
       clearDesktopSelection();
     });
   });
 
-  // desktop extras
   $("#btnMiss")?.addEventListener("click", miss);
   $("#btnBackDart")?.addEventListener("click", undoLastDart);
   $("#btnValidateTurn")?.addEventListener("click", validateTurn);
 
-  // mobile multis
+  // mobile multis (pour 1..20 seulement)
   document.querySelectorAll(".mobile-multi").forEach(b => {
     b.addEventListener("click", () => {
       if (state.mobileNumber == null) return;
+
+      // si base=25, on n'arrive pas ici normalement (car 25/bull sont directs)
+      if (state.mobileNumber === 25 && b.dataset.m === "T") return;
+
       addDart(state.mobileNumber, b.dataset.m);
     });
   });
 
-  // mobile actions
   $("#btnMobileMiss")?.addEventListener("click", miss);
   $("#btnMobileUndoDart")?.addEventListener("click", undoLastDart);
   $("#btnMobileValidate")?.addEventListener("click", validateTurn);
 
-  // ✅ bouton Retour (fix)
   $("#btnMobileBack")?.addEventListener("click", () => {
-    // si on est dans l'étape multis, retour à l'étape chiffres
     if (state.mobileStep === "multis"){
       state.mobileNumber = null;
       mobileSetStep("numbers");
     }
   });
 
-  // overlay resize/orientation
   window.addEventListener("resize", () => {
     if (state.started && isMobile()) setMobileOverlay(true);
     if (!isMobile()) setMobileOverlay(false);
