@@ -155,3 +155,72 @@ body{
 }
 .hist-item b{color:var(--text)}
 
+/* --- Mobile "focus mode" overlay --- */
+.mobile-overlay{
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--bg);
+  padding: 14px;
+  display:flex;
+  flex-direction: column;
+  gap:12px;
+}
+
+.mobile-overlay.hidden{ display:none; }
+
+.mobile-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.mobile-step{
+  flex: 1;
+  display:flex;
+  align-items:stretch;
+}
+
+.mobile-grid{
+  flex:1;
+  display:grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap:10px;
+}
+
+.mobile-grid button{
+  padding:18px 10px;
+  border-radius:16px;
+  font-size:18px;
+}
+
+.mobile-multis{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  justify-content:center;
+}
+
+.mobile-multi{
+  padding:18px 12px;
+  border-radius:16px;
+  font-size:18px;
+}
+
+.mobile-bottom{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  border-top:1px solid rgba(255,255,255,.08);
+  padding-top:12px;
+}
+
+/* Sur petit écran, on simplifie l'écran principal pendant la partie */
+@media (max-width: 980px){
+  /* Optionnel: réduire la densité du layout principal */
+  .history{ display:none; } /* cache l’historique */
+}
+
