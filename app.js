@@ -4,6 +4,7 @@
    - Double-out optionnel (Bull = D25)
    - Multi joueurs (1..8), 3 fléchettes par tour
    - Undo (pile d'états)
+   - UI mobile "focus mode" (plein écran) : chiffres -> S/D/T
 */
 
 const $ = (sel) => document.querySelector(sel);
@@ -16,7 +17,7 @@ const state = {
   players: [],
   currentPlayer: 0,
   currentTurn: [], // [{base, mult, points}]
-  selectedNumber: null, // base number chosen
+  selectedNumber: null, // base number chosen (desktop UI)
   history: [], // snapshots for undo
   log: [] // readable history entries
 };
@@ -41,6 +42,9 @@ function snapshot() {
 function restore(snap) {
   Object.assign(state, deepClone(snap));
   renderAll();
+  // keep mobile overlay in sync
+  if (!state.started) setMobileOverlay(false);
+  else if (isMobile()) setMobileOverlay(true);
 }
 
 function pushUndo() {
@@ -50,12 +54,16 @@ function pushUndo() {
 
 function setStatus(msg, ok=false) {
   const el = $("#status");
+  if (!el) return;
   el.textContent = msg;
   el.style.color = ok ? "var(--ok)" : "";
 }
 
+/* ------------------ Desktop number pad ------------------ */
+
 function buildNumberPad() {
   const numbers = $("#numbers");
+  if (!numbers) return;
   numbers.innerHTML = "";
 
   const btn = (label, val) => {
@@ -90,15 +98,20 @@ function selectNumber(val) {
 }
 
 function enableMultipliers(on) {
-  $("#btnS").disabled = !on;
-  $("#btnD").disabled = !on;
-  $("#btnT").disabled = !on;
+  const btnS = $("#btnS"), btnD = $("#btnD"), btnT = $("#btnT");
+  if (!btnS || !btnD || !btnT) return;
+
+  btnS.disabled = !on;
+  btnD.disabled = !on;
+  btnT.disabled = !on;
 
   // If 25 selected, triple is not valid in standard darts.
   if (on && state.selectedNumber === 25) {
-    $("#btnT").disabled = true;
+    btnT.disabled = true;
   }
 }
+
+/* ------------------ Core dart logic ------------------ */
 
 function addDart(mult) {
   if (!state.started) return;
@@ -114,6 +127,8 @@ function addDart(mult) {
   const points = base * m;
 
   state.currentTurn.push({ base, mult, points });
+
+  // reset selection (desktop)
   state.selectedNumber = null;
   enableMultipliers(false);
   clearSelectedNumbersUI();
@@ -121,6 +136,9 @@ function addDart(mult) {
   renderTurn();
   $("#btnValidateTurn").disabled = state.currentTurn.length === 0;
   $("#btnBackDart").disabled = state.currentTurn.length === 0;
+
+  // keep mobile bottom in sync
+  mobileUpdateBottom();
 }
 
 function clearSelectedNumbersUI(){
@@ -132,21 +150,28 @@ function removeLastDart() {
   if (state.currentTurn.length === 0) return;
   state.currentTurn.pop();
   renderTurn();
+
   $("#btnValidateTurn").disabled = state.currentTurn.length === 0;
   $("#btnBackDart").disabled = state.currentTurn.length === 0;
+
   enableMultipliers(false);
   clearSelectedNumbersUI();
   state.selectedNumber = null;
+
   updateHint();
+  mobileUpdateBottom();
 }
 
 function miss() {
   if (!state.started) return;
   if (state.currentTurn.length >= 3) return;
   state.currentTurn.push({ base: 0, mult: "S", points: 0 });
+
   renderTurn();
   $("#btnValidateTurn").disabled = state.currentTurn.length === 0;
   $("#btnBackDart").disabled = state.currentTurn.length === 0;
+
+  mobileUpdateBottom();
 }
 
 function getTurnTotal() {
@@ -228,6 +253,11 @@ function validateTurn() {
   }
 
   renderAll();
+
+  // mobile overlay sync
+  if (!state.started) setMobileOverlay(false);
+  else if (isMobile()) setMobileOverlay(true);
+  mobileUpdateBottom();
 }
 
 function newGame() {
@@ -241,6 +271,7 @@ function newGame() {
     name: `Joueur ${i+1}`,
     score: state.mode
   }));
+
   state.currentPlayer = 0;
   state.currentTurn = [];
   state.selectedNumber = null;
@@ -249,6 +280,9 @@ function newGame() {
 
   setStatus("Partie lancée.", true);
   renderAll();
+
+  // mobile overlay on start (mobile only)
+  if (isMobile()) setMobileOverlay(true);
 }
 
 function resetAll() {
@@ -261,6 +295,8 @@ function resetAll() {
   state.history = [];
   state.log = [];
   setStatus("—", false);
+
+  setMobileOverlay(false);
   renderAll();
 }
 
@@ -272,8 +308,12 @@ function undo() {
   setStatus("Undo.", true);
 }
 
+/* ------------------ Rendering ------------------ */
+
 function renderScoreboard() {
   const sb = $("#scoreboard");
+  if (!sb) return;
+
   sb.innerHTML = "";
   if (state.players.length === 0) {
     sb.innerHTML = `<div class="pill">Crée une partie.</div>`;
@@ -299,6 +339,8 @@ function renderScoreboard() {
 
 function renderTurn() {
   const td = $("#turnDarts");
+  if (!td) return;
+
   td.innerHTML = "";
   state.currentTurn.forEach((d, i) => {
     const chip = document.createElement("div");
@@ -306,14 +348,19 @@ function renderTurn() {
     chip.textContent = `${i+1}. ${dartLabel(d)}`;
     td.appendChild(chip);
   });
-  $("#turnTotal").textContent = String(getTurnTotal());
+
+  const tt = $("#turnTotal");
+  if (tt) tt.textContent = String(getTurnTotal());
 
   const who = state.players[state.currentPlayer]?.name ?? "—";
-  $("#turnInfo").textContent = state.started ? `${who} • fléchettes: ${state.currentTurn.length}/3` : "—";
+  const ti = $("#turnInfo");
+  if (ti) ti.textContent = state.started ? `${who} • fléchettes: ${state.currentTurn.length}/3` : "—";
 }
 
 function renderHistory() {
   const h = $("#historyList");
+  if (!h) return;
+
   h.innerHTML = "";
   if (state.log.length === 0) {
     h.innerHTML = `<div class="hist-item">Aucun tour pour l’instant.</div>`;
@@ -329,6 +376,8 @@ function renderHistory() {
 
 function updateHint() {
   const hint = $("#hint");
+  if (!hint) return;
+
   if (!state.started) {
     hint.innerHTML = `Clique <b>Nouvelle partie</b> pour commencer.`;
     return;
@@ -346,35 +395,141 @@ function updateHint() {
 }
 
 function renderAll() {
-  $("#mode").value = String(state.mode);
-  $("#playersCount").value = String(state.playersCount);
-  $("#doubleOut").checked = state.doubleOut;
+  if ($("#mode")) $("#mode").value = String(state.mode);
+  if ($("#playersCount")) $("#playersCount").value = String(state.playersCount);
+  if ($("#doubleOut")) $("#doubleOut").checked = state.doubleOut;
 
   renderScoreboard();
   renderTurn();
   renderHistory();
   updateHint();
 
-  $("#btnValidateTurn").disabled = !(state.started && state.currentTurn.length > 0);
-  $("#btnBackDart").disabled = !(state.started && state.currentTurn.length > 0);
-  $("#btnUndo").disabled = state.history.length === 0;
+  const v = $("#btnValidateTurn");
+  const b = $("#btnBackDart");
+  const u = $("#btnUndo");
+
+  if (v) v.disabled = !(state.started && state.currentTurn.length > 0);
+  if (b) b.disabled = !(state.started && state.currentTurn.length > 0);
+  if (u) u.disabled = state.history.length === 0;
+
+  mobileUpdateBottom();
 }
 
-function wireEvents() {
-  $("#btnNewGame").addEventListener("click", newGame);
-  $("#btnValidateTurn").addEventListener("click", validateTurn);
-  $("#btnBackDart").addEventListener("click", removeLastDart);
-  $("#btnMiss").addEventListener("click", miss);
-  $("#btnUndo").addEventListener("click", undo);
-  $("#btnReset").addEventListener("click", resetAll);
+/* ------------------ Mobile Focus Mode Overlay ------------------ */
 
-  // Multipliers
+const isMobile = () => window.matchMedia("(max-width: 980px)").matches;
+
+const mobileUI = {
+  step: "numbers", // "numbers" | "multis"
+  selectedNumber: null
+};
+
+function setMobileOverlay(open) {
+  const overlay = $("#mobileOverlay");
+  if (!overlay) return;
+
+  if (open) {
+    overlay.classList.remove("hidden");
+    overlay.setAttribute("aria-hidden", "false");
+    renderMobileNumbers();
+    mobileSetStep("numbers");
+    mobileUpdateTop();
+    mobileUpdateBottom();
+  } else {
+    overlay.classList.add("hidden");
+    overlay.setAttribute("aria-hidden", "true");
+    mobileUI.step = "numbers";
+    mobileUI.selectedNumber = null;
+  }
+}
+
+function mobileSetStep(step) {
+  mobileUI.step = step;
+
+  const stepNumbers = $("#mobileStepNumbers");
+  const stepMultis = $("#mobileStepMultis");
+  if (stepNumbers) stepNumbers.classList.toggle("hidden", step !== "numbers");
+  if (stepMultis) stepMultis.classList.toggle("hidden", step !== "multis");
+
+  const back = $("#btnMobileBack");
+  if (back) back.disabled = (step === "numbers");
+
+  mobileUpdateTop();
+}
+
+function mobileUpdateTop() {
+  const who = state.players[state.currentPlayer]?.name ?? "—";
+  const title = $("#mobileOverlayTitle");
+  if (!title) return;
+
+  if (!state.started) title.textContent = "—";
+  else if (mobileUI.step === "numbers") title.textContent = `${who} • Choisis un chiffre`;
+  else title.textContent = `${who} • ${mobileUI.selectedNumber} → Simple/Double/Triple`;
+}
+
+function mobileUpdateBottom() {
+  const t = $("#mobileTurnTotal");
+  if (t) t.textContent = String(getTurnTotal());
+
+  const v = $("#btnMobileValidate");
+  if (v) v.disabled = !(state.started && state.currentTurn.length > 0);
+}
+
+function renderMobileNumbers() {
+  const host = $("#mobileNumbers");
+  if (!host) return;
+
+  host.innerHTML = "";
+  const add = (label, val) => {
+    const b = document.createElement("button");
+    b.className = "btn btn-secondary";
+    b.textContent = label;
+    b.addEventListener("click", () => {
+      if (!state.started) return;
+      if (state.currentTurn.length >= 3) return;
+      mobileUI.selectedNumber = val;
+      mobileSetStep("multis");
+    });
+    host.appendChild(b);
+  };
+
+  for (let i = 1; i <= 20; i++) add(String(i), i);
+  add("25", 25);
+  add("Bull", 25);
+}
+
+function mobileAddDart(mult) {
+  if (!state.started) return;
+  if (state.currentTurn.length >= 3) return;
+
+  // no triple on 25
+  if (mobileUI.selectedNumber === 25 && mult === "T") return;
+
+  state.selectedNumber = mobileUI.selectedNumber;
+  addDart(mult);
+
+  mobileUI.selectedNumber = null;
+  mobileSetStep("numbers");
+  mobileUpdateBottom();
+}
+
+/* ------------------ Events wiring ------------------ */
+
+function wireEvents() {
+  $("#btnNewGame")?.addEventListener("click", newGame);
+  $("#btnValidateTurn")?.addEventListener("click", validateTurn);
+  $("#btnBackDart")?.addEventListener("click", removeLastDart);
+  $("#btnMiss")?.addEventListener("click", miss);
+  $("#btnUndo")?.addEventListener("click", undo);
+  $("#btnReset")?.addEventListener("click", resetAll);
+
+  // Multipliers (desktop)
   document.querySelectorAll(".multi").forEach(b => {
     b.addEventListener("click", () => addDart(b.dataset.m));
   });
 
-  // Little debug helper to test end states quickly (optional)
-  $("#btnEndLeg").addEventListener("click", () => {
+  // Debug helper (optional)
+  $("#btnEndLeg")?.addEventListener("click", () => {
     if (!state.started || !state.players[state.currentPlayer]) return;
     pushUndo();
     state.players[state.currentPlayer].score = 0;
@@ -382,25 +537,55 @@ function wireEvents() {
     state.log.unshift(`${state.players[state.currentPlayer].name}: 🔧 fin forcée`);
     setStatus("Fin forcée.", true);
     renderAll();
+    setMobileOverlay(false);
   });
 
   // Update options without forcing new game
-  $("#mode").addEventListener("change", () => { state.mode = Number($("#mode").value); renderAll(); });
-  $("#playersCount").addEventListener("change", () => { state.playersCount = Number($("#playersCount").value); renderAll(); });
-  $("#doubleOut").addEventListener("change", () => { state.doubleOut = $("#doubleOut").checked; renderAll(); });
+  $("#mode")?.addEventListener("change", () => { state.mode = Number($("#mode").value); renderAll(); });
+  $("#playersCount")?.addEventListener("change", () => { state.playersCount = Number($("#playersCount").value); renderAll(); });
+  $("#doubleOut")?.addEventListener("change", () => { state.doubleOut = $("#doubleOut").checked; renderAll(); });
+
+  // Mobile overlay controls
+  $("#btnMobileBack")?.addEventListener("click", () => {
+    if (mobileUI.step === "multis") {
+      mobileUI.selectedNumber = null;
+      mobileSetStep("numbers");
+    }
+  });
+
+  document.querySelectorAll(".mobile-multi").forEach(b => {
+    b.addEventListener("click", () => mobileAddDart(b.dataset.m));
+  });
+
+  $("#btnMobileMiss")?.addEventListener("click", () => {
+    miss();
+    mobileUpdateBottom();
+  });
+
+  $("#btnMobileValidate")?.addEventListener("click", () => {
+    validateTurn();
+    mobileUpdateBottom();
+  });
 
   // Keyboard shortcuts (desktop)
   window.addEventListener("keydown", (e) => {
     if (e.key === "Enter") validateTurn();
     if (e.key === "Backspace") removeLastDart();
   });
+
+  // Keep overlay in sync when resizing/orientation change
+  window.addEventListener("resize", () => {
+    if (state.started && isMobile()) setMobileOverlay(true);
+    if (!isMobile()) setMobileOverlay(false);
+  });
 }
 
-// Init
+/* ------------------ Init ------------------ */
+
 buildNumberPad();
 wireEvents();
 renderAll();
 setStatus("—");
 
-// Default UI state
+// Default UI state (desktop multipliers disabled)
 enableMultipliers(false);
