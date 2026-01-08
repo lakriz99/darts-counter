@@ -17,14 +17,11 @@ body{
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
 
   background: #EEAECA;
-  background: radial-gradient(
-    circle,
-    rgba(238, 174, 202, 1) 0%,
-    rgba(148, 187, 233, 1) 100%
-  );
+  background: radial-gradient(circle, rgba(238, 174, 202, 1) 0%, rgba(148, 187, 233, 1) 100%);
 
   color: var(--text);
 }
+
 
 body.no-scroll{
   overflow:hidden;
@@ -172,15 +169,18 @@ body.no-scroll{
   position:fixed;
   inset:0;
   z-index:9999;
-  background: var(--bg);
+
+  background: #EEAECA;
+  background: radial-gradient(circle, rgba(238, 174, 202, 1) 0%, rgba(148, 187, 233, 1) 100%);
+
   padding: 12px;
   display:flex;
   flex-direction:column;
   gap:12px;
-
   overscroll-behavior: none;
   touch-action: manipulation;
 }
+
 
 .mobile-overlay.hidden{display:none}
 
