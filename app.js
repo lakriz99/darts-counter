@@ -85,7 +85,7 @@ function bestCheckout(remaining, doubleOut=true){
   if (remaining <= 1) return null;
 
   // requirement asked: start suggesting from 160 down
-  if (remaining > 160) return null;
+  if (remaining > 170) return null;
 
   // If double-out and remaining is 2..50, there are simple endings etc.
   // brute force 1,2,3 darts.
