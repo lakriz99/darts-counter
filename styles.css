@@ -81,6 +81,20 @@ body.no-scroll{
   background: rgba(255,255,255,.03);
 }
 
+/* ✅ Status styles */
+.pill.status-error{
+  color: var(--danger);
+  font-weight: 900;
+  border-color: rgba(251,113,133,.50);
+  background: rgba(251,113,133,.08);
+}
+.pill.status-ok{
+  color: var(--ok);
+  font-weight: 900;
+  border-color: rgba(52,211,153,.45);
+  background: rgba(52,211,153,.08);
+}
+
 .row{display:flex; align-items:center; gap:12px}
 .row.wrap{flex-wrap:wrap}
 .row.space{justify-content:space-between}
@@ -138,6 +152,14 @@ body.no-scroll{
 .multis{margin-top:12px; display:flex; gap:10px}
 .hint{margin-top:10px; color:var(--muted); font-size:12px}
 
+.suggest{
+  margin-top:14px;
+  border-top:1px solid rgba(255,255,255,.08);
+  padding-top:12px;
+}
+.suggest-title{font-size:12px; color:var(--muted); font-weight:800}
+.suggest-value{margin-top:6px; font-size:14px; font-weight:900}
+
 /* ===== MOBILE OVERLAY ===== */
 .mobile-overlay{
   position:fixed;
@@ -149,7 +171,6 @@ body.no-scroll{
   flex-direction:column;
   gap:12px;
 
-  /* anti scroll / anti pull-to-refresh (quand supporté) */
   overscroll-behavior: none;
   touch-action: manipulation;
 }
@@ -186,6 +207,19 @@ body.no-scroll{
 }
 .mobile-score-pill .n{font-size:12px; color:var(--muted); font-weight:700}
 .mobile-score-pill .s{font-size:18px; font-weight:900}
+
+.mobile-live{
+  display:flex;
+  gap:10px;
+  justify-content:space-between;
+}
+
+.mobile-suggest{
+  border:1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.02);
+  border-radius:16px;
+  padding:10px 12px;
+}
 
 .mobile-turn{
   border:1px solid rgba(255,255,255,.08);
