@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#111827" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>Darts Counter</title>
+</head>
+<body>
+  <header class="header">
+    <div class="title">
+      <h1>Darts Counter</h1>
+      <p class="sub">Saisie fléchette par fléchette • PWA offline</p>
+    </div>
+    <div class="header-actions">
+      <button id="btnUndo" class="btn btn-secondary" disabled>Undo</button>
+      <button id="btnReset" class="btn btn-danger">Reset</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <div class="row wrap">
+        <div class="field">
+          <label>Mode</label>
+          <select id="mode">
+            <option value="501" selected>501</option>
+            <option value="301">301</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Joueurs</label>
+          <select id="playersCount">
+            <option value="1">1</option>
+            <option value="2" selected>2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+          </select>
+        </div>
+
+        <div class="field checkbox">
+          <label>
+            <input type="checkbox" id="doubleOut" checked />
+            Double-out
+          </label>
+          <small>Finir exactement à 0 avec une double (Bull = D25)</small>
+        </div>
+
+        <div class="field">
+          <label>&nbsp;</label>
+          <button id="btnNewGame" class="btn btn-primary">Nouvelle partie</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <section class="card">
+        <div class="row space">
+          <h2>Score</h2>
+          <div id="status" class="pill">—</div>
+        </div>
+
+        <div id="scoreboard" class="scoreboard"></div>
+      </section>
+
+      <section class="card">
+        <div class="row space">
+          <h2>Saisie</h2>
+          <div class="pill" id="turnInfo">—</div>
+        </div>
+
+        <div class="turn">
+          <div class="turn-darts" id="turnDarts"></div>
+          <div class="row space">
+            <div class="turn-total">
+              <div class="label">Total tour</div>
+              <div class="value" id="turnTotal">0</div>
+            </div>
+            <button id="btnValidateTurn" class="btn btn-primary" disabled>Valider tour</button>
+          </div>
+        </div>
+
+        <div class="controls">
+          <div class="numbers" id="numbers"></div>
+
+          <div class="multis">
+            <button class="btn btn-secondary multi" data-m="S" id="btnS" disabled>Simple</button>
+            <button class="btn btn-secondary multi" data-m="D" id="btnD" disabled>Double</button>
+            <button class="btn btn-secondary multi" data-m="T" id="btnT" disabled>Triple</button>
+          </div>
+
+          <div class="row wrap">
+            <button id="btnMiss" class="btn btn-secondary">Miss (0)</button>
+            <button id="btnBackDart" class="btn btn-secondary" disabled>Retirer dernière fléchette</button>
+            <button id="btnEndLeg" class="btn btn-secondary">Forcer fin (debug)</button>
+          </div>
+
+          <div class="hint" id="hint">
+            Clique un <b>chiffre</b>, puis <b>Simple/Double/Triple</b>.
+          </div>
+        </div>
+
+        <details class="history">
+          <summary>Historique (tour par tour)</summary>
+          <div id="historyList" class="history-list"></div>
+        </details>
+      </section>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>Astuce: “Ajouter à l’écran d’accueil” pour l’installer.</span>
+  </footer>
+
+  <script src="app.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js"));
+    }
+  </script>
+</body>
+</html>
